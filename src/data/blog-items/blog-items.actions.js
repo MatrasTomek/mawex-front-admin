@@ -6,8 +6,6 @@ export const GET_ALL_BLOG_ITEMS = "GET_ALL_BLOG_ITEMS";
 export const ADD_BLOG_ITEM = "ADD_BLOG_ITEM";
 export const EDIT_BLOG_ITEM = "EDIT_BLOG_ITEM";
 export const DELETE_BLOG_ITEM = "DELETE_BLOG_ITEM";
-export const ADD_BLOG_PHOTO = "ADD_BLOG_PHOTO";
-export const CLEAR_BLOG_PHOTO = "CLEAR_BLOG_PHOTO";
 
 export const getAllBlogItems = () => async (dispatch) => {
 	dispatch(addSpinner());
@@ -28,30 +26,23 @@ export const getAllBlogItems = () => async (dispatch) => {
 	}
 };
 
-export const addPhotoFile = (formData) => async (dispatch) => {
+// zwraca nazwę pliku zapisanego na serwerze albo null przy błędzie
+export const uploadPhotoFile = (formData) => async (dispatch) => {
 	dispatch(addSpinner());
 	const { data, status } = await request.post("posts/upload", formData, {
 		headers: { "Content-Type": "multipart/form-data" },
 		credentials: "include",
 		withCredentials: true,
 	});
+	dispatch(removeSpinner());
 	if (status === 201) {
-		dispatch(removeSpinner());
-		dispatch({
-			type: ADD_BLOG_PHOTO,
-			payload: data.fileName,
-		});
 		dispatch(timeoutShowTask("Zdjęcie dodane"));
-	} else {
-		dispatch(removeSpinner());
-		dispatch(timeoutShowTask(data.message || data.error));
+		return data.fileName;
 	}
+	dispatch(timeoutShowTask((data && (data.message || data.error)) || "Nie udało się dodać zdjęcia"));
+	return null;
 };
-export const clearPhotoFile = () => (dispatch) => {
-	dispatch({
-		type: CLEAR_BLOG_PHOTO,
-	});
-};
+
 export const addMainInfoItem = (mainInfoItemData) => async (dispatch) => {
 	dispatch(addSpinner());
 	const { data, status } = await request.post("posts/add", mainInfoItemData, {
@@ -66,7 +57,7 @@ export const addMainInfoItem = (mainInfoItemData) => async (dispatch) => {
 			type: ADD_BLOG_ITEM,
 			payload: data.data,
 		});
-		dispatch(clearPhotoFile());
+		return true;
 	} else {
 		dispatch(removeSpinner());
 		dispatch(timeoutShowTask(data.message || data.error));
@@ -87,6 +78,7 @@ export const editMainInfoItem = (mainInfoItemData) => async (dispatch) => {
 			type: EDIT_BLOG_ITEM,
 			payload: data.data,
 		});
+		return true;
 	} else {
 		dispatch(removeSpinner());
 		dispatch(timeoutShowTask(data.message || data.error));

@@ -17,9 +17,8 @@ const BlogItem = ({ itemData }) => {
         userName,
         date,
         imgPath } = itemData;
-    console.log(imgSource, imgPath);
 
-    const linkViev = link === "" ? null : <a href={ `${ link }` }>link do źródła</a>;
+    const linkViev = !link ? null : <a href={ `${ link }` }>link do źródła</a>;
 
     const [isAddNewsModalOpen, setIsAddNewsModalOpen] = useState(false);
 
@@ -40,7 +39,7 @@ const BlogItem = ({ itemData }) => {
         });
     };
 
-    const sortedContent1 = content1.split(/\n/);
+    const sortedContent1 = (content1 || "").split(/\n/);
     const vievContent1 = sortedContent1.map((item, index) => <p key={ index }>{ item }</p>);
 
     const sortedContent2 = !content2 ? null : content2.split(/\n/);
@@ -49,7 +48,7 @@ const BlogItem = ({ itemData }) => {
     return (
         <div className={ styles.itemWrapper }>
             <div className={ styles.image }>
-                <img src={ `${ imgSource }/${ imgPath }` } alt={ `${ imgPath.slice(12, 40) }` } />
+                <img src={ `${ imgSource }/${ imgPath }` } alt={ title } />
             </div>
             <div className={ styles.content }>
                 <p className={ styles.title }>tytuł: { title }</p>
@@ -59,7 +58,6 @@ const BlogItem = ({ itemData }) => {
                 <div className={ styles.content2 }>
                     { vievContent2 }
                 </div>
-                <p>{ content2 }</p>
                 { linkViev }
                 <div className={ styles.signature }>
                     <p>{ date }</p>

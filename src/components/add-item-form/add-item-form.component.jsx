@@ -1,27 +1,26 @@
-import React from 'react';
-import { useDispatch, useSelector } from "react-redux";
-import { editMainInfoItem, addMainInfoItem, addPhotoFile, clearPhotoFile } from "../../data/blog-items";
+import React, { useId, useRef, useState } from 'react';
+import { useDispatch } from "react-redux";
+import { editMainInfoItem, addMainInfoItem, uploadPhotoFile } from "../../data/blog-items";
 import { Formik } from "formik";
 import * as Yup from "yup";
 import { Button, Modal } from "..";
 import styles from "./add-item-form.module.scss";
-import { useState } from "react";
 
 const SignupSchema = Yup.object().shape({
     title: Yup.string().required("Pole wymagane"),
     content1: Yup.string().required("Pole wymagane"),
     date: Yup.date().required("Pole wymagane"),
     userName: Yup.string().required("Pole wymagane"),
-
-
 });
 
 
 const AddItemForm = ({ isAddNewsModalOpen, setIsAddNewsModalOpen, isEdited = false, setIsEdited = false }) => {
 
-    const photoItem = useSelector(store => store.photoItem);
-
     const dispatch = useDispatch();
+
+    // unikalne id inputa — każdy BlogItem i nagłówek renderuje własny formularz
+    const fileInputId = useId();
+    const fileInputRef = useRef(null);
 
     const initialValues = {
         title: isEdited ? isEdited.title : "",
@@ -30,44 +29,61 @@ const AddItemForm = ({ isAddNewsModalOpen, setIsAddNewsModalOpen, isEdited = fal
         date: isEdited ? isEdited.date : "",
         link: isEdited ? isEdited.link : "",
         userName: isEdited ? isEdited.userName : "",
-        imgPath: isEdited ? isEdited.userName : ""
+        imgPath: isEdited ? isEdited.imgPath : ""
     };
-
 
     const [file, setFile] = useState("");
+    // nazwa zdjęcia wgranego w TYM formularzu (lokalnie, nie globalnie w Redux)
+    const [uploadedFileName, setUploadedFileName] = useState(null);
+
+    const resetPhoto = () => {
+        setFile("");
+        setUploadedFileName(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    };
 
     const handleSetFile = (e) => {
-        setFile(e.target.files[0]);
+        setFile(e.target.files[0] || "");
+        setUploadedFileName(null);
     };
-    const [fileNameData, setFileNameData] = useState(null);
 
     const handleUploadFile = async (e) => {
         e.preventDefault();
+        if (!file) {
+            return;
+        }
         const formData = new FormData();
         formData.append("file", file);
-        dispatch(addPhotoFile(formData));
-        if (photoItem) {
-            setFileNameData(photoItem);
+        const fileName = await dispatch(uploadPhotoFile(formData));
+        if (fileName) {
+            setUploadedFileName(fileName);
         }
     };
 
-    const handleOnSubmit = (values, { setSubmitting }) => {
+    const handleOnSubmit = async (values, { setSubmitting, resetForm }) => {
+        const payload = { ...values };
+        let success;
         if (isEdited) {
-            values.id = isEdited.id;
-            if (!photoItem) {
-                values.imgPath = isEdited.imgPath;
-            } else {
-                values.imgPath = `images/blog/${ photoItem }`;
-            }
-            dispatch(editMainInfoItem(values));
+            payload.id = isEdited.id;
+            payload.imgPath = uploadedFileName ? `images/blog/${ uploadedFileName }` : isEdited.imgPath;
+            success = await dispatch(editMainInfoItem(payload));
         } else {
-            values.imgPath = `images/blog/${ photoItem }`;
-            dispatch(addMainInfoItem(values));
-
+            payload.imgPath = `images/blog/${ uploadedFileName }`;
+            success = await dispatch(addMainInfoItem(payload));
+        }
+        setSubmitting(false);
+        if (!success) {
+            return;
+        }
+        if (isEdited) {
+            setIsEdited(false);
+        } else {
+            resetForm();
         }
         setIsAddNewsModalOpen(false);
-        dispatch(clearPhotoFile());
-        setFile("");
+        resetPhoto();
     };
 
     const handleCloseAddItemModal = () => {
@@ -75,10 +91,10 @@ const AddItemForm = ({ isAddNewsModalOpen, setIsAddNewsModalOpen, isEdited = fal
             setIsEdited(false);
         }
         setIsAddNewsModalOpen(false);
-        dispatch(clearPhotoFile());
-        setFile("");
-
+        resetPhoto();
     };
+
+    const canEditContent = Boolean(uploadedFileName || isEdited);
 
     return (
         <Modal isModalOpen={ isAddNewsModalOpen }>
@@ -92,8 +108,8 @@ const AddItemForm = ({ isAddNewsModalOpen, setIsAddNewsModalOpen, isEdited = fal
                             onSubmit={ handleUploadFile }
                         >
                             <div className={ styles.uploadWrapper }>
-                                <input className={ styles.fileInput } id="file-upload" type="file" onChange={ handleSetFile } />
-                                <label htmlFor="file-upload">{ file === "" && !isEdited ? "Wybierz zdjęcie" : " Zmień zdjęcie" }</label>
+                                <input ref={ fileInputRef } className={ styles.fileInput } id={ fileInputId } type="file" accept="image/*" onChange={ handleSetFile } />
+                                <label htmlFor={ fileInputId }>{ file === "" && !isEdited ? "Wybierz zdjęcie" : " Zmień zdjęcie" }</label>
                             </div>
 
                             <div className={ styles.customUpload }>
@@ -107,13 +123,13 @@ const AddItemForm = ({ isAddNewsModalOpen, setIsAddNewsModalOpen, isEdited = fal
                             </div>
 
                             <div className={ styles.buttons }>
-                                { !photoItem ? <Button type="button" name="wyjdź" onClick={ handleCloseAddItemModal } /> : "" }
+                                { !canEditContent ? <Button type="button" name="wyjdź" onClick={ handleCloseAddItemModal } /> : "" }
                                 <Button type="submit" name="zapisz" />
                             </div>
                         </form>
 
                     </div>
-                    { !photoItem ? (
+                    { !canEditContent ? (
                         <p style={ { color: "red" } }>Dodaj i zapisz zdjęcie aby edytować treść</p>
                     ) : (
                         <Formik
@@ -206,7 +222,7 @@ const AddItemForm = ({ isAddNewsModalOpen, setIsAddNewsModalOpen, isEdited = fal
 
                                     <div className={ styles.buttons }>
                                         <Button type="button" name="wyjdź" onClick={ handleCloseAddItemModal } />
-                                        { isEdited ? "" : <Button type="button" name="wyczyść" onClick={ resetForm } /> }
+                                        { isEdited ? "" : <Button type="button" name="wyczyść" onClick={ () => resetForm() } /> }
                                         <Button type="submit" name="zapisz" />
                                     </div>
                                 </form>
